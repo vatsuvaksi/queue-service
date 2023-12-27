@@ -6,7 +6,6 @@ import java.net.URL;
 import java.util.Properties;
 
 public class KakfkaQueueService implements QueueService {
-
     private static final Properties properties;
 
     static {
@@ -58,7 +57,7 @@ public class KakfkaQueueService implements QueueService {
             HttpURLConnection connection = openConnection(queueUrl, "POST");
             writeRequestBody(connection, messageBody);
             String response = readResponseBody(connection);
-            System.out.println("Response: " + response);
+            System.out.println(response);
         } catch (IOException e) {
             throw new RuntimeException("Error pushing message", e);
         }
@@ -78,7 +77,7 @@ public class KakfkaQueueService implements QueueService {
 
     @Override
     public void delete(String queueUrl, String receiptId) {
-        // No implementation provided by Upstash for deleting the message
+        // No implementation provided by Upstash for deleting the message from the queue.
     }
 
     private void validateArguments(String... args) {

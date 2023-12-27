@@ -1,16 +1,15 @@
 package com.example;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 
 public class InMemoryQueueService implements QueueService {
   private final Map<String, Queue<Message>> queues;
-
-  private long visibilityTimeout;
 
   InMemoryQueueService() {
     this.queues = new ConcurrentHashMap<>();
@@ -22,18 +21,29 @@ public class InMemoryQueueService implements QueueService {
     } catch (IOException e) {
       e.printStackTrace();
     }
-
-    this.visibilityTimeout = Integer.parseInt(confInfo.getProperty("visibilityTimeout", "30"));
   }
 
   @Override
   public void push(String queueUrl, String msgBody) {
+    validateArguments(queueUrl, msgBody);
+    int parsedPriority = parseForPriority(msgBody);
     Queue<Message> queue = queues.get(queueUrl);
     if (queue == null) {
-      queue = new ConcurrentLinkedQueue<>();
+      queue = new PriorityQueue<>(Comparator.comparingInt(Message::getPriority));
       queues.put(queueUrl, queue);
     }
-    queue.add(new Message(msgBody));
+    queue.add(new Message(msgBody , parsedPriority));
+  }
+
+  private int parseForPriority(String msgBody) {
+    try {
+      ObjectMapper objectMapper = new ObjectMapper();
+      JsonNode jsonNode = objectMapper.readTree(msgBody);
+      return jsonNode.path("priority").asInt();
+    } catch (IOException e) {
+      e.printStackTrace();
+      return 1; // Default priority for simplicity
+    }
   }
 
   @Override
@@ -43,37 +53,32 @@ public class InMemoryQueueService implements QueueService {
       return null;
     }
 
-    long nowTime = now();
-    Optional<Message> msgOpt = queue.stream().filter(m -> m.isVisibleAt(nowTime)).findFirst();
-    if (msgOpt.isEmpty()) {
-      return null;
-    } else {
-      Message msg = msgOpt.get();
+      Message msg = queue.peek();
       msg.setReceiptId(UUID.randomUUID().toString());
       msg.incrementAttempts();
-      msg.setVisibleFrom(System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(visibilityTimeout));
 
       return new Message(msg.getBody(), msg.getReceiptId());
-    }
   }
 
   @Override
   public void delete(String queueUrl, String receiptId) {
     Queue<Message> queue = queues.get(queueUrl);
     if (queue != null) {
-      long nowTime = now();
-
-      for (Iterator<Message> it = queue.iterator(); it.hasNext(); ) {
-        Message msg = it.next();
-        if (!msg.isVisibleAt(nowTime) && msg.getReceiptId().equals(receiptId)) {
-          it.remove();
-          break;
+      Iterator<Message> iterator = queue.iterator();
+      while (iterator.hasNext()) {
+        Message msg = iterator.next();
+        if (msg.getReceiptId().equals(receiptId)) {
+          iterator.remove(); // Remove the message from the queue
+          break; // Assuming receipt IDs are unique, exit the loop after removal
         }
       }
     }
   }
-
-  long now() {
-    return System.currentTimeMillis();
+  private void validateArguments(String... args) {
+    for (String arg : args) {
+      if (arg == null || arg.isBlank()) {
+        throw new RuntimeException("Argument cannot be empty");
+      }
+    }
   }
 }

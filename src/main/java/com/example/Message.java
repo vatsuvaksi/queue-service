@@ -11,6 +11,7 @@ public class Message {
   private String receiptId;
 
   private String msgBody;
+  private int priority;
 
   Message(String msgBody) {
     this.msgBody = msgBody;
@@ -19,6 +20,10 @@ public class Message {
   Message(String msgBody, String receiptId) {
     this.msgBody = msgBody;
     this.receiptId = receiptId;
+  }
+  Message(String msgBody , int priority){
+    this.msgBody = msgBody;
+    this.priority = priority;
   }
 
   public String getReceiptId() {
@@ -52,5 +57,9 @@ public class Message {
 
   protected void incrementAttempts() {
     this.attempts++;
+  }
+
+  protected int getPriority(){
+    return this.priority;
   }
 }
