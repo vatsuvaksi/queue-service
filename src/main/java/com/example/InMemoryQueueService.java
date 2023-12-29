@@ -39,6 +39,9 @@ public class InMemoryQueueService implements QueueService {
     try {
       ObjectMapper objectMapper = new ObjectMapper();
       JsonNode jsonNode = objectMapper.readTree(msgBody);
+      if(!jsonNode.has("priority")){
+        throw new RuntimeException("Priority is needed");
+      }
       return jsonNode.path("priority").asInt();
     } catch (IOException e) {
       e.printStackTrace();
@@ -49,7 +52,7 @@ public class InMemoryQueueService implements QueueService {
   @Override
   public Message pull(String queueUrl) {
     Queue<Message> queue = queues.get(queueUrl);
-    if (queue == null) {
+    if (queue == null || queue.size() == 0) {
       return null;
     }
 
@@ -63,7 +66,9 @@ public class InMemoryQueueService implements QueueService {
   @Override
   public void delete(String queueUrl, String receiptId) {
     Queue<Message> queue = queues.get(queueUrl);
+
     if (queue != null) {
+
       Iterator<Message> iterator = queue.iterator();
       while (iterator.hasNext()) {
         Message msg = iterator.next();
