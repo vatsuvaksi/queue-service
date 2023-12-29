@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -19,7 +20,7 @@ public class InMemoryQueueTest {
 	
 	
 	@Test
-	public void testSendMessage(){
+	public void testSendMessageAndPull(){
 		qs.push(queueUrl, "{ \"value\":\"Vatsal\", \"age\":30, \"priority\":3 }");
 		qs.push(queueUrl, "{ \"value\":\"Vatsal\", \"age\":30, \"priority\":1 }");
 		qs.push(queueUrl, "{ \"value\":\"Vatsal\", \"age\":30, \"priority\":2 }");
@@ -32,86 +33,63 @@ public class InMemoryQueueTest {
 		Message msg3 = qs.pull(queueUrl);
 		qs.delete(queueUrl , msg3.getReceiptId());
 
+		// * Messages are pulled based on priority * //
+		// * Further Logic can be written to remove priority key from the message object* //
 		assertNotNull(msg1);
 		assertNotNull(msg2);
 		assertNotNull(msg3);
+
 		assertEquals("{ \"value\":\"Vatsal\", \"age\":30, \"priority\":1 }", msg1.getBody());
 		assertEquals("{ \"value\":\"Vatsal\", \"age\":30, \"priority\":2 }", msg2.getBody());
 		assertEquals("{ \"value\":\"Vatsal\", \"age\":30, \"priority\":3 }", msg3.getBody());
 	}
-//
-//	@Test
-//	public void testPullMessage(){
-//		String msgBody = "{ \"name\":\"John\", \"age\":30, \"car\":null }";
-//
-//		qs.push(queueUrl, msgBody);
-//		Message msg = qs.pull(queueUrl);
-//
-//		assertEquals(msgBody, msg.getBody());
-//		assertTrue(msg.getReceiptId() != null && msg.getReceiptId().length() > 0);
-//	}
-//
-//	@Test
-//	public void testPullEmptyQueue(){
-//		Message msg = qs.pull(queueUrl);
-//		assertNull(msg);
-//	}
-//
-//	@Test
-//	public void testDoublePull(){
-//		qs.push(queueUrl, "Message A.");
-//		qs.pull(queueUrl);
-//		Message msg = qs.pull(queueUrl);
-//		assertNull(msg);
-//	}
-//
-//	@Test
-//	public void testDeleteMessage(){
-//		String msgBody = "{ \"name\":\"John\", \"age\":30, \"car\":null }";
-//
-//		qs.push(queueUrl, msgBody);
-//		Message msg = qs.pull(queueUrl);
-//
-//		qs.delete(queueUrl, msg.getReceiptId());
-//		msg = qs.pull(queueUrl);
-//
-//		assertNull(msg);
-//	}
-//
-//	@Test
-//	public void testFIFO3Msgs(){
-//		String [] msgStrs = {"TEst msg 1", "test msg 2",
-//				"{\n" + 								// test with multi-line message.
-//				"    \"name\":\"John\",\n" +
-//				"    \"age\":30,\n" +
-//				"    \"cars\": {\n" +
-//				"        \"car1\":\"Ford\",\n" +
-//				"        \"car2\":\"BMW\",\n" +
-//				"        \"car3\":\"Fiat\"\n" +
-//				"    }\n" +
-//				" }"};
-//		qs.push(queueUrl, msgStrs[0]);
-//		qs.push(queueUrl, msgStrs[1]);
-//		qs.push(queueUrl, msgStrs[2]);
-//		Message msg1 = qs.pull(queueUrl);
-//		Message msg2 = qs.pull(queueUrl);
-//		Message msg3 = qs.pull(queueUrl);
-//
-//		org.junit.Assert.assertTrue(msgStrs[0] == msg1.getBody()
-//				&& msgStrs[1] == msg2.getBody() && msgStrs[2] == msg3.getBody());
-//	}
-//
-//	@Test
-//	public void testAckTimeout(){
-//		InMemoryQueueService queueService = new InMemoryQueueService() {
-//			long now() {
-//				return System.currentTimeMillis() + 1000 * 30 + 1;
-//			}
-//		};
-//
-//		queueService.push(queueUrl, "Message A.");
-//		queueService.pull(queueUrl);
-//		Message msg = queueService.pull(queueUrl);
-//		assertTrue(msg != null && msg.getBody() == "Message A.");
-//	}
+
+	@Test
+	public void testCheckForReceiptId(){
+		String msgBody = "{ \"value\":\"Vatsal\", \"age\":30, \"priority\":1 }";
+
+		qs.push(queueUrl, msgBody);
+		Message msg = qs.pull(queueUrl);
+
+		assertEquals(msgBody, msg.getBody());
+		assertTrue(msg.getReceiptId() != null && msg.getReceiptId().length() > 0);
+	}
+
+	@Test
+	public void testPullEmptyQueue(){
+		Message msg = qs.pull(queueUrl);
+		assertNull(msg);
+	}
+
+	@Test
+	public void testDeleteMessage(){
+		String msgBody = "{ \"value\":\"Vatsal\", \"age\":30, \"priority\":5 }";
+
+		qs.push(queueUrl, msgBody);
+		Message msg = qs.pull(queueUrl);
+
+		qs.delete(queueUrl, msg.getReceiptId());
+		msg = qs.pull(queueUrl);
+
+		assertNull(msg);
+	}
+
+	@Test
+	public void pushShouldThrowRuntimeExceptionWhenPriorityIsMissing() {
+		// Prepare a message body without the "priority" field.
+		String msgBodyWithoutPriority = "{\"message\":\"This is a test message\"}";
+		boolean exceptionThrown = false;
+
+		try {
+			// Call push method with the message body that lacks the "priority" field.
+			qs.push(queueUrl, msgBodyWithoutPriority);
+		} catch (RuntimeException e) {
+			exceptionThrown = true;
+			// Assert that the exception message is as expected.
+			assertEquals("Priority is needed", e.getMessage());
+		}
+
+		// Assert that the RuntimeException was thrown.
+		assertTrue("A RuntimeException was expected to be thrown when priority is missing", exceptionThrown);
+	}
 }
